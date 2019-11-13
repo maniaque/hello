@@ -1,0 +1,68 @@
+---
+- name: deploy hello app
+  gather_facts: false
+  hosts: test
+  become: true
+
+  vars:
+    repo: https://github.com/maniaque/hello
+    repo_dir: '/opt/hello'
+    packages:
+      - nginx
+      - python3
+      - uwsgi-plugin-python3
+
+  tasks:
+    - name: update apt cache
+      apt:
+        update_cache: yes
+
+    - name: install packages
+      package:
+        name: "{{ item }}"
+        state: latest
+      with_items: "{{ packages }}"
+
+    - name: checkout repo
+      git:
+        repo: "{{ repo }}"
+        dest: "{{ repo_dir }}"
+        version: v2.0
+
+    - name: copy systemd config
+      copy:
+        remote_src: yes
+        src: "{{ repo_dir }}/deploy/systemd/hello.service"
+        dest: "/etc/systemd/system/hello.service"
+
+    - name: enable and start service
+      systemd:
+        name: hello
+        daemon_reload: yes
+        enabled: yes
+        state: started
+
+    - name: copy nginx config
+      copy:
+        remote_src: yes
+        src: "{{ repo_dir }}/deploy/nginx/hello.conf"
+        dest: "/etc/nginx/sites-available/hello.conf"
+
+    - name: disable default nginx config
+      file:
+        state: absent
+        path: /etc/nginx/sites-enabled/default
+      notify: restart nginx
+
+    - name: enable our nginx config
+      file:
+        src: /etc/nginx/sites-available/hello.conf
+        dest: /etc/nginx/sites-enabled/hello.conf
+        state: link
+      notify: restart nginx
+
+  handlers:
+    - name: restart nginx
+      systemd:
+        name: nginx
+        state: restarted
