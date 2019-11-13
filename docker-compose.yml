@@ -1,0 +1,8 @@
+version: '3'
+
+services:
+   hello:
+     image: maniaque/hello:1.0
+     ports:
+       - "80:80"
+     restart: always
